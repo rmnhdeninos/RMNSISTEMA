@@ -25,11 +25,16 @@ def conectar_sheets():
 # 3. Traer los datos
 try:
     cliente = conectar_sheets()
-    hoja = cliente.open("Formulario sin título (respuestas)").worksheet("Respuestas de formulario 1")
+    
+    # Reemplaza el texto entre comillas por el link de tu hoja de cálculo
+    url_hoja = "https://docs.google.com/spreadsheets/d/1gT3RbP6uZB2buAedGGlTHpVCr600LRzXooZrVOH8Bjs/edit?gid=993245309#gid=993245309"
+    
+    hoja = cliente.open_by_url(url_hoja).worksheet("Respuestas de formulario 1")
     datos = hoja.get_all_records()
     df = pd.DataFrame(datos)
 except Exception as e:
-    st.error("Error al conectar con la base de datos.")
+    # Ahora sí veremos el error técnico real si algo falla
+    st.error(f"Error técnico al conectar: {e}")
     st.stop()
 
 # 4. Motor de búsqueda
