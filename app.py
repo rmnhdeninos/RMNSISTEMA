@@ -42,18 +42,41 @@ dni_input = st.text_input("Ingrese el DNI del paciente:")
 
 if st.button("Buscar"):
     if dni_input:
+        # Filtramos la tabla buscando el DNI
         resultado = df[df['DNI / Documento'].astype(str).str.strip() == str(dni_input).strip()]
         
         if not resultado.empty:
             st.success("✅ Paciente encontrado")
             paciente = resultado.iloc[0]
             
+            # SECCIÓN 1: Datos del Paciente
             st.info(f"**Nombre y apellido:** {paciente['Nombre y apellido del paciente']}")
-            st.write(f"**DNI:** {paciente['DNI / Documento']}")
+            st.write(f"**DNI / Documento:** {paciente['DNI / Documento']}")
             st.write(f"**Edad:** {paciente['Edad:']}")
-            st.write(f"**Tipo de RMN con anestesia:** {paciente['Tipo de RMN CON ANESTESIA requerida']}")
+            st.write(f"**Peso (kg):** {paciente['Peso (kg)']}")
+            st.write(f"**Altura:** {paciente['Altura']}")
+            st.write(f"**Teléfonos de contacto:** {paciente['Teléfonos de contacto (familiar del paciente)']}")
+            
+            st.divider() # Línea separadora visual
+            
+            # SECCIÓN 2: Datos del Profesional y Solicitud
+            st.subheader("👨‍⚕️ Datos de la Solicitud")
+            st.write(f"**Solicitado como:** {paciente['Solicitado como']}")
+            st.write(f"**Nombre del Profesional:** {paciente['Nombre del Profesional']}")
+            st.write(f"**Especialidad:** {paciente['Especialidad']}")
+            st.write(f"**Marca temporal (Fecha de carga):** {paciente['Marca temporal']}")
+            
+            st.divider() # Línea separadora visual
+            
+            # SECCIÓN 3: Datos del Estudio y Clínicos
+            st.subheader("🏥 Detalles del Estudio Clínico")
+            st.write(f"**Tipo de RMN con anestesia requerida:** {paciente['Tipo de RMN CON ANESTESIA requerida']}")
             st.write(f"**¿Requiere contraste?:** {paciente['¿Requiere contraste?']}")
+            st.write(f"**¿Antecedentes de reacción a contraste?:** {paciente['¿Antecedentes de reacción a contraste?']}")
             st.write(f"**Motivo de anestesia:** {paciente['MOTIVO DE ANESTESIA']}")
+            st.write(f"**Diagnóstico presuntivo:** {paciente['DIAGNÓSTICO PRESUNTIVO']}")
+            st.write(f"**¿Dispositivos médicos?:** {paciente['¿Dispositivos médicos?']}")
+            
         else:
             st.error("❌ No se encontró ningún paciente con el DNI ingresado.")
     else:
