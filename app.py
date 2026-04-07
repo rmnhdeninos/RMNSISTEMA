@@ -2,48 +2,37 @@ import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
-import io
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+import requests
+import base64
 
-# 1. Configuración de la interfaz
 st.set_page_config(page_title="Sistema RMN", page_icon="🏥", layout="centered")
 
 # ==========================================
 # ⚠️ PON TUS DATOS AQUÍ
 # ==========================================
-URL_HOJA = "https://docs.google.com/spreadsheets/d/1gT3RbP6uZB2buAedGGlTHpVCr600LRzXooZrVOH8Bjs/edit?usp=sharing"
-ID_CARPETA_DRIVE = "1F0o2lI-eNZCz8IXYGsIYTfh5T-0vWSv9"
+URL_HOJA = "1F0o2lI-eNZCz8IXYGsIYTfh5T-0vWSv9"
+URL_WEB_APP = "https://script.google.com/macros/s/AKfycbxLVv7aH5gtbnURifmmnZE6kfWCYkzsXeab52h0vve0J9LPmuPIuPQEvuYoE_sNeOzH/exec"
 # ==========================================
-
-# 2. Conexión a las APIs (Sheets y Drive)
-@st.cache_resource
-def obtener_credenciales():
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-    skey = st.secrets["gcp_service_account"]
-    return Credentials.from_service_account_info(skey, scopes=scopes)
 
 @st.cache_resource
 def conectar_sheets():
-    return gspread.authorize(obtener_credenciales())
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive.readonly"
+    ]
+    skey = st.secrets["gcp_service_account"]
+    credentials = Credentials.from_service_account_info(skey, scopes=scopes)
+    return gspread.authorize(credentials)
 
-def conectar_drive():
-    return build('drive', 'v3', credentials=obtener_credenciales())
-
-# 3. Traer los datos
 try:
     cliente = conectar_sheets()
     hoja = cliente.open_by_url(URL_HOJA).worksheet("Respuestas de formulario 1")
     datos = hoja.get_all_records()
     df = pd.DataFrame(datos)
 except Exception as e:
-    st.error(f"Error técnico al conectar: {e}")
+    st.error(f"Error técnico al conectar a la base de datos: {e}")
     st.stop()
 
-# 4. MENÚ LATERAL
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3004/3004451.png", width=100)
 st.sidebar.title("Navegación")
 opcion = st.sidebar.radio("Seleccione el módulo:", ["Buscador Administrativo", "Carga de Informes (Médicos)"])
@@ -88,7 +77,6 @@ if opcion == "Buscador Administrativo":
                 st.write(f"**Diagnóstico:** {paciente['DIAGNÓSTICO PRESUNTIVO']}")
                 st.write(f"**Dispositivos médicos:** {paciente['¿Dispositivos médicos?']}")
                 
-                # Mostrar link del informe si existe
                 if 'Informe Médico PDF' in paciente and str(paciente['Informe Médico PDF']).startswith('http'):
                     st.divider()
                     st.success("📄 Este paciente ya cuenta con un informe subido.")
@@ -115,40 +103,42 @@ elif opcion == "Carga de Informes (Médicos)":
             paciente = resultado.iloc[0]
             st.success(f"Paciente seleccionado: **{paciente['Nombre y apellido del paciente']}**")
             
-            # Subidor de archivos
             archivo_pdf = st.file_uploader("Seleccione el informe en PDF", type=["pdf"])
             
             if archivo_pdf is not None:
                 if st.button("Subir y Guardar Informe"):
-                    with st.spinner("Subiendo a Google Drive y actualizando base de datos..."):
+                    with st.spinner("Subiendo el archivo usando el puente de acceso..."):
                         try:
-                            # 1. Subir a Drive
-                            drive_service = conectar_drive()
-                            file_metadata = {
-                                'name': f"INFORME_{paciente['DNI / Documento']}_{paciente['Nombre y apellido del paciente']}.pdf",
-                                'parents': [ID_CARPETA_DRIVE]
+                            # 1. Convertir el PDF a código base64 para enviarlo por internet
+                            bytes_pdf = archivo_pdf.getvalue()
+                            b64_pdf = base64.b64encode(bytes_pdf).decode('utf-8')
+                            
+                            nombre_archivo = f"INFORME_{paciente['DNI / Documento']}_{paciente['Nombre y apellido del paciente']}.pdf"
+                            
+                            payload = {
+                                "fileName": nombre_archivo,
+                                "mimeType": "application/pdf",
+                                "fileData": b64_pdf
                             }
-                            media = MediaIoBaseUpload(io.BytesIO(archivo_pdf.getvalue()), mimetype='application/pdf', resumable=True)
                             
-                            archivo_subido = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
-                            link_pdf = archivo_subido.get('webViewLink')
+                            # 2. Enviar al puente de Apps Script
+                            respuesta = requests.post(URL_WEB_APP, data=payload)
+                            resultado_json = respuesta.json()
                             
-                            # Dar permiso de lectura al link
-                            drive_service.permissions().create(
-                                fileId=archivo_subido.get('id'),
-                                body={'type': 'anyone', 'role': 'reader'}
-                            ).execute()
-                            
-                            # 2. Actualizar el Excel
-                            fila_excel = int(resultado.index[0]) + 2 
-                            columna_informe = df.columns.get_loc("Informe Médico PDF") + 1
-                            
-                            hoja.update_cell(fila_excel, columna_informe, link_pdf)
-                            
-                            st.success("✅ ¡Informe guardado y vinculado al paciente con éxito!")
-                            st.markdown(f"[Ver archivo subido]({link_pdf})")
-                            
+                            if resultado_json.get("status") == "success":
+                                link_pdf = resultado_json.get("url")
+                                
+                                # 3. Actualizar el Excel
+                                fila_excel = int(resultado.index[0]) + 2 
+                                columna_informe = df.columns.get_loc("Informe Médico PDF") + 1
+                                hoja.update_cell(fila_excel, columna_informe, link_pdf)
+                                
+                                st.success("✅ ¡Informe guardado en su Drive y vinculado al paciente con éxito!")
+                                st.markdown(f"[Ver archivo subido]({link_pdf})")
+                            else:
+                                st.error(f"Error devuelto por el puente: {resultado_json.get('message')}")
+                                
                         except Exception as e:
-                            st.error(f"Ocurrió un error al subir el archivo: {e}")
+                            st.error(f"Ocurrió un error general: {e}")
         else:
             st.error("No hay registros para este DNI.")
