@@ -10,7 +10,7 @@ st.set_page_config(page_title="Sistema RMN", page_icon="🏥", layout="centered"
 # ==========================================
 # ⚠️ PON TUS DATOS AQUÍ
 # ==========================================
-URL_HOJA = "1F0o2lI-eNZCz8IXYGsIYTfh5T-0vWSv9"
+URL_HOJA = "https://docs.google.com/spreadsheets/d/1gT3RbP6uZB2buAedGGlTHpVCr600LRzXooZrVOH8Bjs/edit?resourcekey=&gid=993245309#gid=993245309"
 URL_WEB_APP = "https://script.google.com/macros/s/AKfycbxLVv7aH5gtbnURifmmnZE6kfWCYkzsXeab52h0vve0J9LPmuPIuPQEvuYoE_sNeOzH/exec"
 # ==========================================
 
