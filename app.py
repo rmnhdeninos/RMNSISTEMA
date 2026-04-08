@@ -20,7 +20,6 @@ def iniciar_conexion():
 
 try:
     supabase: Client = iniciar_conexion()
-    # Traemos todos los registros de la tabla pacientes al instante
     respuesta = supabase.table("pacientes").select("*").execute()
     df = pd.DataFrame(respuesta.data)
 except Exception as e:
@@ -42,14 +41,15 @@ if opcion == "Buscador Administrativo":
 
     if st.button("Buscar Paciente"):
         if dni_input:
-            resultado = df[df['DNI / Documento'].astype(str).str.strip() == str(dni_input).strip()]
+            # 🛠️ Ahora buscamos usando la columna limpia 'dni'
+            resultado = df[df['dni'].astype(str).str.strip() == str(dni_input).strip()]
             
             if not resultado.empty:
                 st.success("✅ Paciente encontrado")
                 paciente = resultado.iloc[0]
                 
                 st.info(f"**Nombre y apellido:** {paciente.get('Nombre y apellido del paciente', 'No registrado')}")
-                st.write(f"**DNI / Documento:** {paciente.get('DNI / Documento', '')}")
+                st.write(f"**DNI / Documento:** {paciente.get('dni', '')}")
                 st.write(f"**Edad:** {paciente.get('Edad:', '')}")
                 st.write(f"**Peso (kg):** {paciente.get('Peso (kg)', '')}")
                 st.write(f"**Altura:** {paciente.get('Altura', '')}")
@@ -71,7 +71,7 @@ if opcion == "Buscador Administrativo":
                 st.write(f"**Diagnóstico:** {paciente.get('DIAGNÓSTICO PRESUNTIVO', '')}")
                 st.write(f"**Dispositivos médicos:** {paciente.get('¿Dispositivos médicos?', '')}")
                 
-                informe = paciente.get('Informe Médico PDF', '')
+                informe = paciente.get('informe_pdf', '')
                 if pd.notna(informe) and str(informe).startswith('http'):
                     st.divider()
                     st.success("📄 Este paciente ya cuenta con un informe subido.")
@@ -92,7 +92,7 @@ elif opcion == "Carga de Informes (Médicos)":
     dni_medico = st.text_input("Ingrese el DNI del paciente para adjuntar informe:")
     
     if dni_medico:
-        resultado = df[df['DNI / Documento'].astype(str).str.strip() == str(dni_medico).strip()]
+        resultado = df[df['dni'].astype(str).str.strip() == str(dni_medico).strip()]
         
         if not resultado.empty:
             paciente = resultado.iloc[0]
@@ -104,10 +104,9 @@ elif opcion == "Carga de Informes (Médicos)":
                 if st.button("Subir y Guardar Informe"):
                     with st.spinner("Subiendo el archivo y vinculando a la base de datos..."):
                         try:
-                            # 1. Convertir y enviar al puente (Drive)
                             bytes_pdf = archivo_pdf.getvalue()
                             b64_pdf = base64.b64encode(bytes_pdf).decode('utf-8')
-                            nombre_archivo = f"INFORME_{paciente['DNI / Documento']}_{paciente.get('Nombre y apellido del paciente', '')}.pdf"
+                            nombre_archivo = f"INFORME_{paciente.get('dni', '')}_{paciente.get('Nombre y apellido del paciente', '')}.pdf"
                             
                             payload = {
                                 "fileName": nombre_archivo,
@@ -121,9 +120,9 @@ elif opcion == "Carga de Informes (Médicos)":
                             if resultado_json.get("status") == "success":
                                 link_pdf = resultado_json.get("url")
                                 
-                                # 2. Actualizar Supabase (La magia SQL)
-                                dni_str = str(paciente['DNI / Documento']).strip()
-                                supabase.table("pacientes").update({"Informe Médico PDF": link_pdf}).eq("DNI / Documento", dni_str).execute()
+                                # 🛠️ Acá está la solución: Actualizamos la columna 'informe_pdf' guiándonos por el 'dni'
+                                dni_str = str(paciente['dni']).strip()
+                                supabase.table("pacientes").update({"informe_pdf": link_pdf}).eq("dni", dni_str).execute()
                                 
                                 st.success("✅ ¡Informe guardado en su Drive y vinculado al paciente con éxito!")
                                 st.markdown(f"[Ver archivo subido]({link_pdf})")
